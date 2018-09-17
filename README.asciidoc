@@ -1,0 +1,132 @@
+= a4-amortization-calculator
+
+A library for generating amortization schedules.
+
+See https://github.com/gheinze/amortization-firefox/tree/master/web-ext-artifacts for a Firefox addon
+demonstrating the use of this library to display amortization schedules.
+
+=== Dependencies
+
+Moment.js: https://momentjs.com/
+
+=== API
+
+[source, javascript]
+----
+getPeriodicPayment(amAttrs)
+getPayments(amAttrs)
+getPerDiem(amAttrs)
+timePeriod()
+----
+
+=== amAttrs
+
+Amortization attributes are collected into an object and passed as a parameter to api functions:
+
+[source, javascript]
+----
+var amAttrs = {
+    loanAmount: 10000,
+    preferredPayment: 0,
+    startDate: '2018-01-01',
+    adjustmentDate: '2018-01-01',
+    termInMonths: 12,
+    interestOnly: true,
+    amortizationPeriodMonths: 240,
+    compoundingPeriodsPerYear: 2,
+    paymentFrequency: 12,
+    interestRate: 10
+};
+----
+
+==== Loan amount
+The principal of the loan.
+
+==== Start Date
+The date from which interest is charged. Typically the date that funds are forwarded.  Note that the payment schedule can be adjusted to commence on a future date.  `Payment 0` is used to display the cummulative per diem interest between the start date and the adjustment date. For example, if funds are forwarded on the 25th of the month and there is a desire to have the regular payments on the first of the month:
+
+* the start date would be the 25th
+* the adjustment date would be the following 1st
+* `Payment 0` would be the interest accrued between the 25th and the 1st
+
+==== Adjustment Date
+The date from which the regular payment schedule should commence.
+
+==== Term in Months
+Determines how far out the amortization schedule should be generated. The loan could be amortized over a longer period (ex 25 years) but only the first year of the schedule would be generated if `12` is selected as the term in months.
+
+==== Interest only
+Restricts calculations to strictly period interest. No principal amount will be added to the regular payments. No principal over-payments will be included. The regular payments maintain the principal over the term.
+
+==== Amortization months
+The number of months over which the entire principal amount of the loan is to be repaid. This determines the additional principal which needs to be added to each regular payment (in addition to the interest charge) in order to pay out the entire loan within this period.
+
+==== Compounded
+Determines the frequency at which interest is calculated and "added" to the principal. The compounding period alters the effective interest rate.
+
+.Note:
+
+* Interest on Canadian mortgages are calculated semi-annually whereas other loans (car loans) are calculated monthly
+* Interest on US mortgages are calculated monthly
+
+As an example, a nominal interest rate of 10% can have an effective interest rate of 10% if compounded annually, 10.25% if compounded semi-annually, and 10.46% if compounded monthly:
+
+.$10,000 @ 10% compounded annually:
+
+* all interest calculated at the end of the year: `$10,000 x 0.1 = $1,000`
+* principal: `$10,000`
+* total principal + interest: `$11,000`
+* effective interest rate: `$1,000 / $10,000 = 10%`
+
+.$10,000 @ 10% compounded semi-annually:
+
+* interest for first 6 months (semi-annually):
+ `$10,000 x 0.1 / 2 = $500`
+ * interest for second 6 months: `$10,500 x 0.1 / 2 = $525`
+* principal: `$10,000`
+* total principal + interest: `$11,025`
+* effective interest rate: `$1,025 / $10,000 = 10.25%`
+
+.$10,000 @ 10% compounded monthly:
+
+* interest for first 1st month (monthly):
+ `$10,000 x 0.1 / 12 = $83.33`
+ * interest for 2nd month: `$10,083.33 x 0.1 / 12 = $84.03`
+ * interest for 3rd, 4th, ...12th month
+* principal: `$10,000`
+* total principal + interest: `$11,047.13`
+* effective interest rate: `$1,047.13 / $10,000 = 10.47%`
+
+==== Interest rate
+The nominal interest rate expressed as a percentage.
+
+==== Payment frequency
+The number of times a year regular payments are to be made.
+
+.Payment Frequency
+[options="header"]
+|===
+|Frequency|Annual Payments|Description|Example
+|Weekly|52|Same day of the week all year|Mon Jan 4 2016, Mon Jan 11 2016, Mon Jan 18 2016, ...
+|BiWeekly|26|Every second week|Mon Jan 4 2016, Mon Jan 18 2016, ...
+|SemiMonthly|24|Two fixed dates a month, 14 days apart|Jan 1, Jan 15, Feb 1, Feb 15, ...
+|Monthly|12|Fixed date every month|Jan 15, Feb 15, Mar 15, ...
+|BiMonthly|6|Every second month|Jan 15, Mar 15, May 15, ...
+|Quarterly|4|Every three months|Jan 1, Apr 1, Jul 1, ...
+|SemiAnnually|2|Twice a year|Jan 1, Jul 1, ...
+|Annually|1|A payment on every anniversary date|Jan 1 2016, Jan 1 2017, ...
+|===
+
+==== Preferred Payment
+The regular payment is the amount to be applied to the loan at `payment frequency` intervals.
+
+If the preferred payment is is greater than the computed regular payment, the exta amount will be applied to the principal. This will reduce the period balance and hence also reduce the amount of interest required in subsequent periods.
+
+If the preferred payment is less than the computed regular payment, the computed regular payment will be used instead.
+
+=== Notes on Computations
+The nominal interest rate is used to compute the interest rate for the payment period. For example a 12% interest rate with monthly payments would result in a 1% interest rate per monthly payment period. The break down of the payments is performed in an iterative manner:
+
+* apply the period interest rate to the outstanding balance of the loan to calculate the interest charge for the period. Any fractional amounts are rounded up. For example a calculated interest amount for a period of $100.251 would result in an interest amount of $100.26
+* subtract the calculated period interest rate from the regular payment and apply any remainder to the balance. For example, if the period interest is calculated as $150 and the regular payment is $200, then $50 will be applied to reduce the balance. If payment were less than the calculated interest, then the balance would be increased accordingly.
+* repeat for the next period using the new balance
